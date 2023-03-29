@@ -1,19 +1,15 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-
-const app = express();
-app.use(bodyParser.json());
-
 const { Gateway, Wallets } = require('fabric-network');
-
 const path = require('path');
 const fs = require('fs');
 
-// const ccpPath = path.resolve(__dirname, '..','..', '..', 'test-network-3org-new', 'organizations', 'peerOrganizations', 'patientorg', 'connection-org1.json');
-// const ccp = JSON.parse(fs.readFileSync(ccpPath, 'utf8'));
-// const walletPath = path.join(process.cwd(), 'wallet/org1');
-// const wallet = Wallets.newFileSystemWallet(walletPath);
+const mspOrg1 = 'PatientOrgMSP';
+const FabricCAServices = require('fabric-ca-client');
+const { buildCAClient, registerAndEnrollUser, enrollAdmin } = require('../CAUtil.js');
+const { buildCCPOrg1, buildCCPOrg2, buildCCPOrg3, buildWallet } = require('../AppUtil.js');
 
+const ccpPath = path.resolve(__dirname, '..', '..', '..', 'test-network-3org-new', 'organizations', 'peerOrganizations', 'patientorg', 'connection-org1.json');
+const ccp = JSON.parse(fs.readFileSync(ccpPath, 'utf8'));
+const walletPath = path.join(process.cwd(), 'wallet/org1');
 
 const addPatientDetails = async (req, res) => {
     try {
@@ -21,17 +17,18 @@ const addPatientDetails = async (req, res) => {
         console.log(patientDetails);
         let parsePatientDetails = JSON.stringify(patientDetails)
 
-        const ccpPath = path.resolve(__dirname, '..', '..', '..', 'test-network-3org-new', 'organizations', 'peerOrganizations', 'patientorg', 'connection-org1.json');
-        const ccp = JSON.parse(fs.readFileSync(ccpPath, 'utf8'));
-        const walletPath = path.join(process.cwd(), 'wallet/org1');
-        console.log(walletPath, "--walletpath--");
+        const ccpOrg1 = buildCCPOrg1();
+        const caOrg1Client = buildCAClient(FabricCAServices, ccpOrg1, 'ca.org1');
+        const walletPathOrg1 = path.join(__dirname, '..', 'wallet/org1');
+        const walletOrg1 = await buildWallet(Wallets, walletPathOrg1);
+        await registerAndEnrollUser(caOrg1Client, walletOrg1, mspOrg1, patientDetails.patientId, 'org1.department1');;
+
         const wallet = await Wallets.newFileSystemWallet(walletPath);
         const gateway = new Gateway();
-        await gateway.connect(ccp, { wallet, identity: 'appUser4', discovery: { enabled: true, asLocalhost: true } });
-
+        await gateway.connect(ccp, { wallet, identity: patientDetails.patientId, discovery: { enabled: true, asLocalhost: true } });
         const network = await gateway.getNetwork('health-channel');
         const contract = network.getContract('Hospital');
-        // await contract.addDiscoveryInterest({ name: "Hospital", collectionNames: ["PatientOrgMSPPrivateCollection"] });
+
         await contract.submitTransaction('addPatientDetails', parsePatientDetails);
 
         res.send(`Patient ${patientDetails.patientId} created successfully`);
@@ -44,20 +41,16 @@ const addPatientDetails = async (req, res) => {
 
 const getPatientDetails = async (req, res) => {
     try {
-        const ccpPath = path.resolve(__dirname, '..', '..', '..', 'test-network-3org-new', 'organizations', 'peerOrganizations', 'patientorg', 'connection-org1.json');
-        const ccp = JSON.parse(fs.readFileSync(ccpPath, 'utf8'));
-        const walletPath = path.join(process.cwd(), 'wallet/org1');
         const wallet = await Wallets.newFileSystemWallet(walletPath);
-
         const gateway = new Gateway();
-        await gateway.connect(ccp, { wallet, identity: 'appUser4', discovery: { enabled: true, asLocalhost: true } });
-
+        await gateway.connect(ccp, { wallet, identity: req.params.patientId, discovery: { enabled: true, asLocalhost: true } });
         const network = await gateway.getNetwork('health-channel');
         const contract = network.getContract('Hospital');
 
         const result = await contract.evaluateTransaction('getPatientlByIdNew', req.params.patientId);
         console.log(result, "resultresult");
         const patinet = JSON.parse(result.toString());
+
         res.send(patinet);
     }
     catch (error) {
@@ -75,25 +68,20 @@ const createAppointment = async (req, res) => {
         createAppointmentDetails.patientId = createAppointmentDetails.patientId;
         createAppointmentDetails.createDate = new Date()
         createAppointmentDetails.updateDate = createAppointmentDetails.createDate
-        // createAppointmentDetails.status;
 
         let parseCreateAppointmentDetails = JSON.stringify(createAppointmentDetails);
         console.log(parseCreateAppointmentDetails, "----------");
 
-        const ccpPath = path.resolve(__dirname, '..', '..', '..', 'test-network-3org-new', 'organizations', 'peerOrganizations', 'patientorg', 'connection-org1.json');
-        const ccp = JSON.parse(fs.readFileSync(ccpPath, 'utf8'));
-        const walletPath = path.join(process.cwd(), 'wallet/org1');
         const wallet = await Wallets.newFileSystemWallet(walletPath);
-
         const gateway = new Gateway();
-        await gateway.connect(ccp, { wallet, identity: 'appUser4', discovery: { enabled: true, asLocalhost: true } });
-
+        await gateway.connect(ccp, { wallet, identity: req.body.patientId, discovery: { enabled: true, asLocalhost: true } });
         const network = await gateway.getNetwork('health-channel');
         const contract = network.getContract('Hospital');
-        console.log("before transaction ");
+
         const result = await contract.submitTransaction('createAppointment', parseCreateAppointmentDetails);
         let getAppointment = await contract.evaluateTransaction('getAppointmentDetailsById', createAppointmentDetails.appointmentId);
         getAppointment = JSON.parse(getAppointment.toString());
+
         res.json(getAppointment);
     }
     catch (error) {

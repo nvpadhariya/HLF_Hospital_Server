@@ -28,15 +28,6 @@ const Org1UserId = 'appUser4';
 const Org2UserId = 'appUser5';
 const Org3UserId = 'appUser6';
 
-function prettyJSONString(inputString) {
-	if (inputString) {
-		return JSON.stringify(JSON.parse(inputString), null, 2);
-	}
-	else {
-		return inputString;
-	}
-}
-
 async function initContractFromOrg1Identity() {
 	// console.log('\n--> Fabric client user & Gateway init: Using Org1 identity to Org1 Peer');
 	const ccpOrg1 = buildCCPOrg1();
@@ -87,7 +78,6 @@ async function initContractFromOrg3Identity() {
 	// console.log('\n--> Fabric client user & Gateway init: Using Org3 identity to Org3 Peer');
 	const ccpOrg3 = buildCCPOrg3();
 	const caOrg3Client = buildCAClient(FabricCAServices, ccpOrg3, 'ca.org3');
-
 	const walletPathOrg3 = path.join(__dirname, 'wallet/org3');
 	const walletOrg3 = await buildWallet(Wallets, walletPathOrg3);
 
